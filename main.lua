@@ -7,9 +7,26 @@ local x = 96
 local y = 24
 local dir = 0
 local e_rail = 0
+local inventorySize = 7
 
 local rails = {}
 local carts = {}
+
+local DIRS = {
+	[1] = {x = 0, y = -0.5},
+	[2] = {x = 0.5, y = 0},
+	[3] = {x = 0, y = 0.5},
+	[4] = {x = -0.5, y = 0}
+}
+
+local function find(t_array ,t)
+ for i = 1, #t_array do
+  if t == t_array[i] then
+  	return i
+  end
+ end
+ return false
+end
 
 local function CheckInRail(cx, cy)
  local rx = math.floor(cx + 0.5)
@@ -20,29 +37,6 @@ local function CheckInRail(cx, cy)
   end
  end
  return false
-end
-
-local function CheckRailRotation(rail)
-
-	if rail.rot == 0 and rail.t_rail == 0 then
-		return "negy"
-	elseif rail.rot == 1 and rail.t_rail == 0 then
-		return "posx"
-	elseif rail.rot == 2 and rail.t_rail == 0 then
-		return "posy"
-	elseif rail.rot == 3 and rail.t_rail == 0 then
-		return "negx"
-	elseif rail.rot == 0 and rail.t_rail == 1 then
-		return "posx"
-	elseif rail.rot == 1 and rail.t_rail == 1 then
-		return "posy"
-	elseif rail.rot == 2 and rail.t_rail == 1 then
-		return "negx"
-	elseif rail.rot == 3 and rail.t_rail == 1 then
-		return "negy"
-	else
-		return false
-	end
 end
 
 local function PlaceRail(px, py, prot, pt)
@@ -70,39 +64,22 @@ local function UpdateCarts()
   if cart.trav == 0 then
   	rail = CheckInRail(cart.x, cart.y)
    if not rail == false then
-   	railRot = CheckRailRotation(rail)
-    if railRot == "negx" then
-	    cart.trav = cart.trav + 0.5
-	    cart.x = cart.x - 0.5
-					cart.dir = 1
-				elseif railRot == "posx" then
-					cart.trav = cart.trav + 0.5
-					cart.x = cart.x + 0.5
-					cart.dir = 3
-				elseif railRot == "negy" then
-					cart.trav = cart.trav + 0.5
-					cart.y = cart.y - 0.5
-					cart.dir = 0
-				elseif railRot == "posy" then
-					cart.trav = cart.trav + 0.5
-					cart.y = cart.y + 0.5
-					cart.dir = 2
-				else
-					
+    if rail.t_rail == 1 then
+					if rail.rot == cart.dir then
+						cart.dir = (cart.dir + 1) % 4
+					else
+						cart.dir = (cart.dir + 3) % 4
+					end
 				end
+				cart.trav = cart.trav + 0.5
+				cart.x = cart.x + DIRS[cart.dir+1].x
+				cart.y = cart.y + DIRS[cart.dir+1].y
    end
   else
    if cart.trav < 8 then
     cart.trav = cart.trav + 0.5
-    if cart.dir == 0 then
-    	cart.y = cart.y - 0.5
-    elseif cart.dir == 1 then
-    	cart.x = cart.x - 0.5
-    elseif cart.dir == 2 then
-    	cart.y = cart.y + 0.5
-    else
-    	cart.x = cart.x + 0.5
-    end
+    cart.x = cart.x + DIRS[cart.dir+1].x
+				cart.y = cart.y + DIRS[cart.dir+1].y
    else
     cart.trav = 0
     cart.x = math.floor(cart.x + 0.5)
@@ -112,6 +89,19 @@ local function UpdateCarts()
  end
 end
 
+local function DrawInventory()
+
+	for i = 1, inventorySize, 1 do
+		if e_rail+1 == i then
+			spr(49, 48 + (i * 16), 88, 0, 2)
+		end
+		spr(48, 48 + (i * 16), 110, 0, 2)
+		spr(i-1, 48 + (i * 16) + 4, 110 + 4, 0, 1)
+	end
+	
+
+end
+
 function TIC()
  if btnp(0) then y = y - 8 end
  if btnp(1) then y = y + 8 end
@@ -119,27 +109,53 @@ function TIC()
  if btnp(3) then x = x + 8 end
 
  if btnp(4) then
-     PlaceRail(x, y, dir, e_rail)
+ 	if e_rail < 3 then
+   PlaceRail(x, y, dir, e_rail)
+ 	elseif e_rail == 3 then
+  	PlaceCart(x, y, dir)
+  else
+  	local rail = CheckInRail(x, y)
+	 	local found = find(rails, rail)
+	  if not found == false then
+	  	table.remove(rails, found)
+	  end 
+  end
  end
 
  if btnp(5) then
-     if dir >= 3 then
-         dir = 0
-     else
-         dir = dir + 1
-     end
+  if dir >= 3 then
+   dir = 0
+  else
+   dir = dir + 1
+  end
  end
-
+ 
  if btnp(6) then
-     if e_rail == 1 then
-         e_rail = 0
-     else
-         e_rail = 1
-     end
+ 	local rail = CheckInRail(x, y)
+ 	local found = find(rails, rail)
+  if not found == false then
+  	table.remove(rails, found)
+  end 
  end
-
- if btnp(7) then
-     PlaceCart(x, y, rot)
+ 
+ if keyp(28) then
+ 	e_rail = 0
+ end
+ 
+ if keyp(29) then
+  e_rail = 1
+ end
+ 
+ if keyp(30) then
+ 	e_rail = 2
+ end
+ 
+ if keyp(31) then
+ 	e_rail = 3
+ end
+ 
+ if keyp(32) then
+ 	e_rail = 4
  end
 
  UpdateCarts()
@@ -147,16 +163,19 @@ function TIC()
  cls(1)
 
  for i = 1, #rails do
-     local r = rails[i]
-     spr(r.t_rail, r.x, r.y, 0, 1, 0, r.rot)
+ 	local r = rails[i]
+  spr(r.t_rail, r.x, r.y, 0, 1, 0, r.rot)
  end
 
  for i = 1, #carts do
-     local c = carts[i]
-     spr(3, math.floor(c.x + 0.5), math.floor(c.y + 0.5), 0)
+  local c = carts[i]
+  spr(3, math.floor(c.x + 0.5), math.floor(c.y + 0.5), 0, 1, 0, c.dir)
  end
  
- spr(e_rail, x, y, 0, 1, 0, dir, 1, 1)
+ -- spr(e_rail, x, y, 0, 1, 0, dir, 1, 1)
+ spr(32, x, y, 0, 1, 0, dir, 1, 1)
+ 
+ DrawInventory()
  
  print("Rails: " .. #rails, 4, 4, 15)
  print("Carts: " .. #carts, 4, 12, 15)
