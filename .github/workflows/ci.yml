@@ -14,13 +14,13 @@ jobs:
       - name: 1. Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Instalar Luacheck e TIC-80 CLI
+      - name: 2. Instalar Luacheck e TIC-80 CLI (x86_64)
         run: |
           sudo apt-get update
           sudo apt-get install -y lua-check unzip libgl1 libglu1-mesa xvfb jq
           mkdir -p tic80_bin
-          TIC_URL=$(curl -s https://api.github.com/repos/nesbox/TIC-80/releases | jq -r '[.[].assets[] | select(.name | test("linux.*(\\.tar\\.gz|\\.zip)$"))][0].browser_download_url')
-          echo "Baixando TIC-80 de: $TIC_URL"
+          TIC_URL=$(curl -s https://api.github.com/repos/nesbox/TIC-80/releases | jq -r '[.[].assets[] | select((.name | test("linux")) and (.name | test("arm|rpi|android") | not) and (.name | test("\\.tar\\.gz$|\\.zip$")))][0].browser_download_url')
+          echo "Baixando TIC-80 x64 de: $TIC_URL"
           wget -q "$TIC_URL" -O tic80_pkg
           if [[ "$TIC_URL" == *.tar.gz ]]; then
             tar -xzf tic80_pkg -C tic80_bin

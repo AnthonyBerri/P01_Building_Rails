@@ -122,13 +122,13 @@ end
 local function DrawInventory()
 
 	for i = 1, inventorySize, 1 do
+		spr(48 + 256, 52 + (i * 14), 110, 7, 2)
 		if e_item+1 == i then
-			spr(49, 52 + (i * 14), 88, 0, 2)
-			spr(i-1, 52 + (i * 14) + 4, 110 + 4, 0, 1, 0, dir)
+			spr(49 + 256, 52 + (i * 14), 88, 0, 2)
+			spr((i-1) + 256, 52 + (i * 14) + 4, 110 + 4, 0, 1, 0, dir)
 		else
-			spr(i-1, 52 + (i * 14) + 4, 110 + 4, 0, 1)
+			spr((i-1) + 256, 52 + (i * 14) + 4, 110 + 4, 0, 1)
 		end
-		spr(48, 52 + (i * 14), 110, 0, 2)
 	end
 end
 
@@ -139,6 +139,10 @@ local function PlaceBlock(bx, by, brot)
   end
  end
  table.insert(blocks, {x = bx, y = by, dir = brot})
+end
+
+function MENU() 
+
 end
 
 function TIC()
@@ -175,6 +179,10 @@ function TIC()
   end 
  end
  
+ if keyp(16) then
+ 	MENU()
+ end
+ 
  if keyp(28) then
  	e_item = 0
  end
@@ -199,6 +207,10 @@ function TIC()
   e_item = 5
  end
  
+ if keyp(34) then
+ 	e_item = 6
+ end
+ 
  if keyp(89) then
  	camX = camX + 8
   camY = camY + 8
@@ -211,48 +223,50 @@ function TIC()
 
  UpdateCarts()
 
- cls(0)
+ cls()
 
- 
- local mx, my, press = mouse()
-
- if press then
-  if not isDragging then
-   -- Click started: remember the mouse position and current camera anchor
-   dragStartX = mx + camX
-   dragStartY = my + camY
-   isDragging = true
-  else
-   -- Currently dragging: calculate new camera position based on mouse movement
-   camX = dragStartX - mx
-   camY = dragStartY - my
-  end
- else
-  -- Left click released
-  isDragging = false
- end
+ if e_item == 6 then
+	 local mx, my, press = mouse()
+	
+	 if press then
+	  if not isDragging then
+	   -- Click started: remember the mouse position and current camera anchor
+	   dragStartX = mx + camX
+	   dragStartY = my + camY
+	   isDragging = true
+	  else
+	   -- Currently dragging: calculate new camera position based on mouse movement
+	   camX = dragStartX - mx
+	   camY = dragStartY - my
+	  end
+	 else
+	  -- Left click released
+	  isDragging = false
+	 end
+		-- x = x - camX
+	 -- y = y - camY
+	end
 
  -- Draw the map offset by the camera variables
  -- Arguments: map( tileX, tileY, tileW, tileH, sx, sy )
- map(0, 0, camX, camY)
+ map(math.floor(camX / 8), math.floor(camY / 8), 31, 18, -(camX % 8), -(camY % 8))
 
  for i = 1, #rails do
  	local r = rails[i]
-  spr(r.t_rail, r.x - camX, r.y - camY, 0, 1, 0, r.rot)
+  spr(r.t_rail + 256, r.x - camX, r.y - camY, 0, 1, 0, r.rot)
  end
 
  for i = 1, #carts do
   local c = carts[i]
-  spr(3, math.floor(c.x + 0.5) - camX, math.floor(c.y + 0.5) - camY, 0, 1, 0, c.dir)
+  spr(3 + 256, math.floor(c.x + 0.5) - camX, math.floor(c.y + 0.5) - camY, 0, 1, 0, c.dir)
  end
  
  for i = 1, #blocks do
  	local b = blocks[i]
-  spr(4, b.x - camX, b.y - camY, 0, 1, 0, b.dir)
+  spr(4 + 256, b.x - camX, b.y - camY, 0, 1, 0, b.dir)
  end
- 
- -- spr(e_item, x, y, 0, 1, 0, dir, 1, 1)
- spr(32, x - camX, y - camY, 0, 1, 0, dir, 1, 1)
+ -- Virtual Pointer
+ spr(32 + 256, x - camX, y - camY, 0, 1, 0, dir, 1, 1)
  
  DrawInventory()
  
