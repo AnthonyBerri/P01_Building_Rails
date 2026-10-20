@@ -12,7 +12,7 @@ local camX = 0
 local camY = 0
 local dragStartX = 0
 local dragStartY = 0
-local isDraging = false
+local isDragging = false
 
 local rails = {}
 local carts = {}
@@ -80,7 +80,7 @@ local function UpdateCarts()
 
   if cart.trav == 0 then
   	rail = CheckInRail(cart.x, cart.y)
-   if not rail == false then
+   if rail then
     if rail.t_rail == 1 then
 					if rail.rot == cart.dir then
 						cart.dir = (cart.dir + 1) % 4

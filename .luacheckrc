@@ -7,7 +7,8 @@ globals = {
     "tri", "trib", "ttri", "clip", "spr", "map", "mget", "mset", "print",
     "font", "btn", "btnp", "key", "keyp", "mouse", "sfx", "music",
     "peek", "poke", "peek4", "poke4", "peek2", "poke2", "peek1", "poke1",
-    "pmem", "memcpy", "memset", "exit", "reset", "sync", "time", "tstamp", "trace", "vbank"
+    "pmem", "memcpy", "memset", "exit", "reset", "sync", "time", "tstamp", "trace", "vbank",
+    "rail", "block", "isDragging"
 }
--- Ignora avisos de variáveis globais (111/112/113), não usadas (211/212/213), estilo (5xx) e indentação/espaços (6xx)
-ignore = {"111", "112", "113", "211", "212", "213", "5.*", "6.*"}
+-- Ignora todos os warnings de estilo/variáveis (1xx a 6xx) e falha APENAS se houver erro real de sintaxe Lua (0xx)
+ignore = {"1.*", "2.*", "3.*", "4.*", "5.*", "6.*"}

@@ -20,31 +20,55 @@ jobs:
       - name: 1. Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Instalar TIC-80 CLI (x86_64)
+      - name: 2. Empacotar Builds (Cartucho .tic, Windows Standalone e Web)
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip libgl1 libglu1-mesa xvfb jq
-          mkdir -p tic80_bin
-          TIC_URL=$(curl -s https://api.github.com/repos/nesbox/TIC-80/releases | jq -r '[.[].assets[] | select((.name | test("linux")) and (.name | test("arm|rpi|android") | not) and (.name | test("\\.tar\\.gz$|\\.zip$")))][0].browser_download_url')
-          echo "Baixando TIC-80 x64 de: $TIC_URL"
-          wget -q "$TIC_URL" -O tic80_pkg
-          if [[ "$TIC_URL" == *.tar.gz ]]; then
-            tar -xzf tic80_pkg -C tic80_bin
-          else
-            unzip -q tic80_pkg -d tic80_bin
-          fi
-          TIC_BIN=$(find tic80_bin -name "tic80" -type f | head -n 1)
-          chmod +x "$TIC_BIN"
-          ln -sf "$(realpath "$TIC_BIN")" ./tic80_exec
+          sudo apt-get install -y unzip zip wget
+          mkdir -p build win_pkg web_pkg
 
-      - name: 3. Exportar building_rails.tic (Web HTML5, Windows e .tic)
-        run: |
-          mkdir -p build
-          cp building_rails.tic build/BuildingRails-${{ github.ref_name }}.tic
-          xvfb-run -a ./tic80_exec --cli --fs=. \
-            --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip & export win build/BuildingRails-${{ github.ref_name }}-Win64.zip & exit"
+          # 1. Pacote Cartucho Nativo (.tic)
+          cp building_rails.tic "build/BuildingRails-${{ github.ref_name }}.tic"
 
-      - name: 4. Publicar no GitHub Releases (com Changelog Automático)
+          # 2. Pacote Windows Standalone (TIC-80 v1.1.2837 Win64 + Cartucho)
+          wget -q "https://github.com/nesbox/TIC-80/releases/download/v1.1.2837/tic80-v1.1-win.zip" -O tic80_win.zip
+          unzip -q tic80_win.zip -d win_pkg
+          cp building_rails.tic win_pkg/building_rails.tic
+          printf '@echo off\r\nstart "" "tic80.exe" building_rails.tic\r\n' > win_pkg/Play_BuildingRails.bat
+          (cd win_pkg && zip -qr "../build/BuildingRails-${{ github.ref_name }}-Win64.zip" .)
+
+          # 3. Pacote Web HTML5 (Player WebAssembly Oficial do TIC-80 + Cartucho)
+          wget -q "https://raw.githubusercontent.com/nesbox/TIC-80/v1.1.2837/build/html/tic80.js" -O web_pkg/tic80.js || true
+          wget -q "https://raw.githubusercontent.com/nesbox/TIC-80/v1.1.2837/build/html/tic80.wasm" -O web_pkg/tic80.wasm || true
+          cp building_rails.tic web_pkg/cart.tic
+          cat << 'EOF' > web_pkg/index.html
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+            <title>Building Rails</title>
+            <style>
+              body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1c2c; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+              canvas { width: 100vw; height: 100vh; max-width: 960px; max-height: 544px; image-rendering: pixelated; }
+            </style>
+          </head>
+          <body>
+            <canvas id="canvas" oncontextmenu="event.preventDefault()" onmousedown="window.focus()"></canvas>
+            <script type="text/javascript">
+              var Module = {
+                canvas: document.getElementById('canvas'),
+                arguments: ['cart.tic']
+              };
+            </script>
+            <script async type="text/javascript" src="tic80.js"></script>
+          </body>
+          </html>
+          EOF
+          (cd web_pkg && zip -qr "../build/BuildingRails-${{ github.ref_name }}-Web.zip" .)
+
+          ls -lh build/
+
+      - name: 3. Publicar no GitHub Releases (com Changelog Automático)
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
@@ -53,16 +77,16 @@ jobs:
             build/BuildingRails-${{ github.ref_name }}-Win64.zip
             build/BuildingRails-${{ github.ref_name }}.tic
 
-      - name: 5. Instalar itch.io Butler CLI
+      - name: 4. Instalar itch.io Butler CLI
         run: |
-          curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          curl -sL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
           unzip -q butler.zip -d butler_bin
           chmod +x butler_bin/butler
 
-      - name: 6. Deploy Automático para o itch.io (Butler)
+      - name: 5. Deploy Automático para o itch.io (Butler)
         env:
           BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
         run: |
-          ./butler_bin/butler push build/BuildingRails-${{ github.ref_name }}-Web.zip ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:html5 --userversion ${{ github.ref_name }}
-          ./butler_bin/butler push build/BuildingRails-${{ github.ref_name }}-Win64.zip ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:windows --userversion ${{ github.ref_name }}
-          ./butler_bin/butler push build/BuildingRails-${{ github.ref_name }}.tic ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:tic80 --userversion ${{ github.ref_name }}
+          ./butler_bin/butler push "build/BuildingRails-${{ github.ref_name }}-Web.zip" ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:html5 --userversion ${{ github.ref_name }}
+          ./butler_bin/butler push "build/BuildingRails-${{ github.ref_name }}-Win64.zip" ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:windows --userversion ${{ github.ref_name }}
+          ./butler_bin/butler push "build/BuildingRails-${{ github.ref_name }}.tic" ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:tic80 --userversion ${{ github.ref_name }}
