@@ -14,13 +14,22 @@ jobs:
       - name: 1. Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Instalar Luacheck e TIC-80 CLI (v1.3.1)
+      - name: 2. Instalar Luacheck e TIC-80 CLI
         run: |
           sudo apt-get update
-          sudo apt-get install -y lua-check libgl1 libglu1-mesa xvfb
+          sudo apt-get install -y lua-check unzip libgl1 libglu1-mesa xvfb jq
           mkdir -p tic80_bin
-          wget -qO- https://github.com/nesbox/TIC-80/releases/download/v1.3.1/tic80-v1.3.1-linux-x64.tar.gz | tar -xz -C tic80_bin
-          chmod +x tic80_bin/tic80
+          TIC_URL=$(curl -s https://api.github.com/repos/nesbox/TIC-80/releases | jq -r '[.[].assets[] | select(.name | test("linux.*(\\.tar\\.gz|\\.zip)$"))][0].browser_download_url')
+          echo "Baixando TIC-80 de: $TIC_URL"
+          wget -q "$TIC_URL" -O tic80_pkg
+          if [[ "$TIC_URL" == *.tar.gz ]]; then
+            tar -xzf tic80_pkg -C tic80_bin
+          else
+            unzip -q tic80_pkg -d tic80_bin
+          fi
+          TIC_BIN=$(find tic80_bin -name "tic80" -type f | head -n 1)
+          chmod +x "$TIC_BIN"
+          ln -sf "$(realpath "$TIC_BIN")" ./tic80_exec
 
       - name: 3. Validar Sintaxe Lua (main.lua)
         run: luacheck main.lua --config .luacheckrc
@@ -28,6 +37,6 @@ jobs:
       - name: 4. Validar Integridade do Cartucho (building_rails.tic)
         run: |
           mkdir -p build_test
-          xvfb-run -a ./tic80_bin/tic80 --cli --fs=. \
+          xvfb-run -a ./tic80_exec --cli --fs=. \
             --cmd="load building_rails.tic & export html build_test/test_web.zip & exit"
           test -f build_test/test_web.zip
