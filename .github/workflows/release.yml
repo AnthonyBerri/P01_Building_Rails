@@ -20,23 +20,34 @@ jobs:
       - name: 1. Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Baixar TIC-80 CLI (v1.3.1) e Exportar (Web HTML5, Windows e .tic)
+      - name: 2. Baixar TIC-80 CLI e Exportar (Web HTML5, Windows e .tic)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path build, tic80_bin | Out-Null
+          # Cria as pastas de trabalho
+          if (!(Test-Path "build")) { New-Item -ItemType Directory -Path "build" }
+          if (!(Test-Path "tic80_bin")) { New-Item -ItemType Directory -Path "tic80_bin" }
 
-          # 1. Baixa o TIC-80 v1.3.1 oficial para Windows
-          curl.exe -sL "https://github.com/nesbox/TIC-80/releases/download/v1.3.1/tic80-v1.3.1-win.zip" -o tic80.zip
-          Expand-Archive -Path tic80.zip -DestinationPath tic80_bin -Force
+          # Baixa o TIC-80 v1.3.1 para Windows
+          Write-Host "Baixando TIC-80..."
+          curl.exe -sL "https://github.com/nesbox/TIC-80/releases/download/v1.3.1/tic80-v1.3.1-win.zip" -o "tic80.zip"
+          
+          # Extrai o executável
+          Write-Host "Extraindo TIC-80..."
+          Expand-Archive -Path "tic80.zip" -DestinationPath "tic80_bin" -Force
 
-          # 2. Copia o cartucho .tic nativo
-          Copy-Item "building_rails.tic" "build/BuildingRails-${{ github.ref_name }}.tic"
+          # Copia o cartucho .tic nativo
+          Copy-Item "building_rails.tic" "build/BuildingRails-${{ github.ref_name }}.tic" -Force
 
-          # 3. Exporta a build Web (HTML5) e o executável Windows via CLI do TIC-80
-          ./tic80_bin/tic80.exe --cli --fs=. --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip & export win build/BuildingRails.exe & exit" | Out-Null
+          # Exporta a build Web (HTML5) e o executável Windows via CLI
+          Write-Host "Exportando builds..."
+          & "tic80_bin/tic80.exe" --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip & export win build/BuildingRails.exe & exit"
 
-          # 4. Compacta o executável Windows em .zip
-          Compress-Archive -Path "build/BuildingRails.exe" -DestinationPath "build/BuildingRails-${{ github.ref_name }}-Win64.zip" -Force
+          # Compacta o executável Windows em .zip
+          if (Test-Path "build/BuildingRails.exe") {
+              Compress-Archive -Path "build/BuildingRails.exe" -DestinationPath "build/BuildingRails-${{ github.ref_name }}-Win64.zip" -Force
+          } else {
+              throw "Erro: O executavel Windows nao foi gerado pelo TIC-80!"
+          }
 
           Get-ChildItem build/
 
@@ -54,10 +65,13 @@ jobs:
         env:
           BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
         run: |
-          New-Item -ItemType Directory -Force -Path butler_bin | Out-Null
-          curl.exe -sL "https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default" -o butler.zip
-          Expand-Archive -Path butler.zip -DestinationPath butler_bin -Force
+          if (!(Test-Path "butler_bin")) { New-Item -ItemType Directory -Path "butler_bin" }
+          
+          Write-Host "Baixando Butler..."
+          curl.exe -sL "https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default" -o "butler.zip"
+          Expand-Archive -Path "butler.zip" -DestinationPath "butler_bin" -Force
 
-          ./butler_bin/butler.exe push "build/BuildingRails-${{ github.ref_name }}-Web.zip" "${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:html5" --userversion "${{ github.ref_name }}"
-          ./butler_bin/butler.exe push "build/BuildingRails-${{ github.ref_name }}-Win64.zip" "${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:windows" --userversion "${{ github.ref_name }}"
-          ./butler_bin/butler.exe push "build/BuildingRails-${{ github.ref_name }}.tic" "${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:tic80" --userversion "${{ github.ref_name }}"
+          Write-Host "Enviando para o itch.io..."
+          & "butler_bin/butler.exe" push "build/BuildingRails-${{ github.ref_name }}-Web.zip" "${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:html5" --userversion "${{ github.ref_name }}"
+          & "butler_bin/butler.exe" push "build/BuildingRails-${{ github.ref_name }}-Win64.zip" "${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:windows" --userversion "${{ github.ref_name }}"
+          & "butler_bin/butler.exe" push "build/BuildingRails-${{ github.ref_name }}.tic" "${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:tic80" --userversion "${{ github.ref_name }}"
