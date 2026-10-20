@@ -6,11 +6,17 @@
 local x = 96
 local y = 24
 local dir = 0
-local e_rail = 0
+local e_item = 0
 local inventorySize = 7
+local camX = 0
+local camY = 0
+local dragStartX = 0
+local dragStartY = 0
+local isDraging = false
 
 local rails = {}
 local carts = {}
+local blocks = {}
 
 local DIRS = {
 	[1] = {x = 0, y = -0.5},
@@ -34,6 +40,17 @@ local function CheckInRail(cx, cy)
  for i = 1, #rails do
   if rails[i].x == rx and rails[i].y == ry then
    return rails[i]
+  end
+ end
+ return false
+end
+
+local function CheckBlock(cx, cy)
+	local bx = math.floor(cx + 0.5)
+ local by = math.floor(cy + 0.5)
+ for i = 1, #blocks do
+  if blocks[i].x == bx and blocks[i].y == by then
+   return blocks[i]
   end
  end
  return false
@@ -70,6 +87,19 @@ local function UpdateCarts()
 					else
 						cart.dir = (cart.dir + 3) % 4
 					end
+				else
+		   block = CheckBlock(cart.x + (DIRS[cart.dir+1].x * 16),cart.y + (DIRS[cart.dir+1].y * 16))
+		   if block then
+		   	cart.dir = (cart.dir + 2) % 4
+		   end
+					if not ((cart.dir % 2) == (rail.rot % 2)) then
+						if math.random(0, 1) == 1 then
+							cart.dir = (cart.dir + 1) % 4
+						else
+							cart.dir = (cart.dir - 1) % 4
+						end
+					end
+					
 				end
 				cart.trav = cart.trav + 0.5
 				cart.x = cart.x + DIRS[cart.dir+1].x
@@ -92,14 +122,23 @@ end
 local function DrawInventory()
 
 	for i = 1, inventorySize, 1 do
-		if e_rail+1 == i then
-			spr(49, 48 + (i * 16), 88, 0, 2)
+		if e_item+1 == i then
+			spr(49, 52 + (i * 14), 88, 0, 2)
+			spr(i-1, 52 + (i * 14) + 4, 110 + 4, 0, 1, 0, dir)
+		else
+			spr(i-1, 52 + (i * 14) + 4, 110 + 4, 0, 1)
 		end
-		spr(48, 48 + (i * 16), 110, 0, 2)
-		spr(i-1, 48 + (i * 16) + 4, 110 + 4, 0, 1)
+		spr(48, 52 + (i * 14), 110, 0, 2)
 	end
-	
+end
 
+local function PlaceBlock(bx, by, brot)
+	for i = 1, #blocks do
+ 	if blocks[i].x == bx and blocks[i].y == by then
+   return
+  end
+ end
+ table.insert(blocks, {x = bx, y = by, dir = brot})
 end
 
 function TIC()
@@ -109,25 +148,23 @@ function TIC()
  if btnp(3) then x = x + 8 end
 
  if btnp(4) then
- 	if e_rail < 3 then
-   PlaceRail(x, y, dir, e_rail)
- 	elseif e_rail == 3 then
+ 	if e_item < 3 then
+   PlaceRail(x, y, dir, e_item)
+ 	elseif e_item == 3 then
   	PlaceCart(x, y, dir)
-  else
+  elseif e_item == 5 then
   	local rail = CheckInRail(x, y)
 	 	local found = find(rails, rail)
 	  if not found == false then
 	  	table.remove(rails, found)
-	  end 
+	  end
+		else
+			PlaceBlock(x, y, dir)
   end
  end
 
  if btnp(5) then
-  if dir >= 3 then
-   dir = 0
-  else
-   dir = dir + 1
-  end
+ 	dir = (dir + 1) % 4
  end
  
  if btnp(6) then
@@ -139,44 +176,91 @@ function TIC()
  end
  
  if keyp(28) then
- 	e_rail = 0
+ 	e_item = 0
  end
  
  if keyp(29) then
-  e_rail = 1
+  e_item= 1
  end
  
  if keyp(30) then
- 	e_rail = 2
+ 	e_item = 2
  end
  
  if keyp(31) then
- 	e_rail = 3
+ 	e_item = 3
  end
  
  if keyp(32) then
- 	e_rail = 4
+ 	e_item = 4
+ end
+ 
+ if keyp(33) then
+  e_item = 5
+ end
+ 
+ if keyp(89) then
+ 	camX = camX + 8
+  camY = camY + 8
+ end
+ 
+ if keyp(90) then
+ 	camX = camX - 8
+  camY = camY - 8
  end
 
  UpdateCarts()
 
- cls(1)
+ cls(0)
+
+ 
+ local mx, my, press = mouse()
+
+ if press then
+  if not isDragging then
+   -- Click started: remember the mouse position and current camera anchor
+   dragStartX = mx + camX
+   dragStartY = my + camY
+   isDragging = true
+  else
+   -- Currently dragging: calculate new camera position based on mouse movement
+   camX = dragStartX - mx
+   camY = dragStartY - my
+  end
+ else
+  -- Left click released
+  isDragging = false
+ end
+
+ -- Draw the map offset by the camera variables
+ -- Arguments: map( tileX, tileY, tileW, tileH, sx, sy )
+ map(0, 0, camX, camY)
 
  for i = 1, #rails do
  	local r = rails[i]
-  spr(r.t_rail, r.x, r.y, 0, 1, 0, r.rot)
+  spr(r.t_rail, r.x - camX, r.y - camY, 0, 1, 0, r.rot)
  end
 
  for i = 1, #carts do
   local c = carts[i]
-  spr(3, math.floor(c.x + 0.5), math.floor(c.y + 0.5), 0, 1, 0, c.dir)
+  spr(3, math.floor(c.x + 0.5) - camX, math.floor(c.y + 0.5) - camY, 0, 1, 0, c.dir)
  end
  
- -- spr(e_rail, x, y, 0, 1, 0, dir, 1, 1)
- spr(32, x, y, 0, 1, 0, dir, 1, 1)
+ for i = 1, #blocks do
+ 	local b = blocks[i]
+  spr(4, b.x - camX, b.y - camY, 0, 1, 0, b.dir)
+ end
+ 
+ -- spr(e_item, x, y, 0, 1, 0, dir, 1, 1)
+ spr(32, x - camX, y - camY, 0, 1, 0, dir, 1, 1)
  
  DrawInventory()
  
+ 
+ 
+ -- map(0, 0, 30, 17, -camX, -camY, -1)
+ 
  print("Rails: " .. #rails, 4, 4, 15)
  print("Carts: " .. #carts, 4, 12, 15)
+ print("Blocks: " .. #blocks, 4, 20, 15)
 end
