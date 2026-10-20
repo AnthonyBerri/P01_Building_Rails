@@ -20,53 +20,24 @@ jobs:
       - name: 1. Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Empacotar Builds (Cartucho .tic, Windows Standalone e Web)
+      - name: 2. Instalar TIC-80 CLI e Empacotar (Web HTML5, Windows e .tic)
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip zip wget
-          mkdir -p build win_pkg web_pkg
+          sudo apt-get install -y unzip zip wget xvfb libgl1 libglu1-mesa libasound2t64
+          mkdir -p build tic80_linux
 
-          # 1. Pacote Cartucho Nativo (.tic)
+          # 1. Baixa o TIC-80 Linux x64 oficial (v1.1.2837)
+          wget -q "https://github.com/nesbox/TIC-80/releases/download/v1.1.2837/tic80-v1.1-linux.zip" -O tic80_linux.zip
+          unzip -q tic80_linux.zip -d tic80_linux
+          chmod +x tic80_linux/tic80
+
+          # 2. Exporta o pacote Web (HTML5 + WASM) e Windows via CLI oficial
           cp building_rails.tic "build/BuildingRails-${{ github.ref_name }}.tic"
-
-          # 2. Pacote Windows Standalone (TIC-80 v1.1.2837 Win64 + Cartucho)
-          wget -q "https://github.com/nesbox/TIC-80/releases/download/v1.1.2837/tic80-v1.1-win.zip" -O tic80_win.zip
-          unzip -q tic80_win.zip -d win_pkg
-          cp building_rails.tic win_pkg/building_rails.tic
-          printf '@echo off\r\nstart "" "tic80.exe" building_rails.tic\r\n' > win_pkg/Play_BuildingRails.bat
-          (cd win_pkg && zip -qr "../build/BuildingRails-${{ github.ref_name }}-Win64.zip" .)
-
-          # 3. Pacote Web HTML5 (Player WebAssembly Oficial do TIC-80 + Cartucho)
-          wget -q "https://raw.githubusercontent.com/nesbox/TIC-80/v1.1.2837/build/html/tic80.js" -O web_pkg/tic80.js || true
-          wget -q "https://raw.githubusercontent.com/nesbox/TIC-80/v1.1.2837/build/html/tic80.wasm" -O web_pkg/tic80.wasm || true
-          cp building_rails.tic web_pkg/cart.tic
-          cat << 'EOF' > web_pkg/index.html
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-            <title>Building Rails</title>
-            <style>
-              body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1c2c; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-              canvas { width: 100vw; height: 100vh; max-width: 960px; max-height: 544px; image-rendering: pixelated; }
-            </style>
-          </head>
-          <body>
-            <canvas id="canvas" oncontextmenu="event.preventDefault()" onmousedown="window.focus()"></canvas>
-            <script type="text/javascript">
-              var Module = {
-                canvas: document.getElementById('canvas'),
-                arguments: ['cart.tic']
-              };
-            </script>
-            <script async type="text/javascript" src="tic80.js"></script>
-          </body>
-          </html>
-          EOF
-          (cd web_pkg && zip -qr "../build/BuildingRails-${{ github.ref_name }}-Web.zip" .)
+          xvfb-run -a ./tic80_linux/tic80 --cli --fs=. \
+            --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip & export win build/BuildingRails-${{ github.ref_name }}-Win64.zip & exit"
 
           ls -lh build/
+          test -f "build/BuildingRails-${{ github.ref_name }}-Web.zip"
 
       - name: 3. Publicar no GitHub Releases (com Changelog Automático)
         uses: softprops/action-gh-release@v2
