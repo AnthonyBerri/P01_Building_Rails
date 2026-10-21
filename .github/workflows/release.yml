@@ -64,7 +64,7 @@ jobs:
           Copy-Item "building_rails.tic" "build/BuildingRails-${{ github.ref_name }}.tic" -Force
 
           Write-Host "Exportando builds..."
-          $ticExe.FullName --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip pack & export win build/BuildingRails.exe pack & exit"
+          & $ticExe.FullName --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip pack & export win build/BuildingRails.exe pack & exit"
 
           Write-Host "Conteudo da pasta build:"
           Get-ChildItem "build" | Select-Object Name, Length
