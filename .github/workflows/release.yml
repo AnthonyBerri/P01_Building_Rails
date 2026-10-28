@@ -11,8 +11,6 @@ permissions:
 env:
   ITCH_USER: "antfelixberri"
   ITCH_GAME: "building-rails"
-  # Tag da release do TIC-80 que sera baixada (a tag tem o .1, os arquivos nao)
-  TIC80_TAG: "v1.3.1"
 
 jobs:
   build-and-deploy:
@@ -22,61 +20,42 @@ jobs:
       - name: 1. Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Baixar TIC-80 CLI e Exportar (Web HTML5, Windows e .tic)
+      - name: 2. Exportar usando o TIC-80 PRO Local (alone=1)
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
 
+          # Cria as pastas de saída
           New-Item -ItemType Directory -Path "build" -Force | Out-Null
-          New-Item -ItemType Directory -Path "tic80_bin" -Force | Out-Null
 
-          Write-Host "Arquivos disponiveis na release $env:TIC80_TAG do TIC-80:"
-          $assets = gh release view $env:TIC80_TAG -R nesbox/TIC-80 --json assets --jq '.assets[].name'
-          if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel listar a release do TIC-80" }
-          $assets | ForEach-Object { Write-Host "  $_" }
-
-          # Procura sozinho o arquivo zip do Windows (ex: tic80-v1.3-win.zip)
-          $winAsset = $assets | Where-Object { $_ -match 'win.*\.zip$' -and $_ -notmatch 'pro' } | Select-Object -First 1
-          if (-not $winAsset) { throw "Nenhum arquivo zip do Windows encontrado na release" }
-          Write-Host "Baixando: $winAsset"
-
-          gh release download $env:TIC80_TAG -R nesbox/TIC-80 -p $winAsset -O tic80.zip --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Falha ao baixar o TIC-80" }
-
-          # Confere se e um zip de verdade (comeca com "PK")
-          $bytes = [System.IO.File]::ReadAllBytes("tic80.zip")
-          Write-Host "Tamanho do tic80.zip: $($bytes.Length) bytes"
-          if ($bytes[0] -ne 0x50 -or $bytes[1] -ne 0x4B) { throw "tic80.zip nao e um arquivo zip valido" }
-
-          Write-Host "Extraindo TIC-80..."
-          Expand-Archive -Path "tic80.zip" -DestinationPath "tic80_bin" -Force
-
-          # Acha o tic80.exe, esteja ele na raiz ou numa subpasta
-          $ticExe = Get-ChildItem -Path "tic80_bin" -Recurse -Filter "tic80.exe" | Select-Object -First 1
-          if (-not $ticExe) {
-            Get-ChildItem -Path "tic80_bin" -Recurse | Select-Object FullName
-            throw "tic80.exe nao encontrado apos extrair"
+          # Localiza o seu executável PRO que foi commitado na pasta tools
+          $ticExe = "tools/tic80.exe"
+          if (!(Test-Path $ticExe)) {
+            throw "Erro: O seu tic80.exe PRO customizado nao foi encontrado na pasta tools!"
           }
-          Write-Host "tic80.exe em: $($ticExe.FullName)"
+          Write-Host "Usando o TIC-80 PRO localizado em: $ticExe"
 
+          # Copia o cartucho original mantendo a nomenclatura da tag
           Copy-Item "building_rails.tic" "build/BuildingRails-${{ github.ref_name }}.tic" -Force
 
-          Write-Host "Exportando builds..."
-          & $ticExe.FullName --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip pack & export win build/BuildingRails.exe pack & exit"
+          # ---------------------------------------------------------------------------------
+          # COMANDO DE EXPORTAÇÃO PRO - Removendo console e editores via código nativo
+          # ---------------------------------------------------------------------------------
+          Write-Host "Executando exportacao limpa com alone=1..."
+          & $ticExe --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip alone=1 & export win build/BuildingRails.exe alone=1 & exit"
 
-          Write-Host "Conteudo da pasta build:"
+          Write-Host "Conteudo da pasta build gerada:"
           Get-ChildItem "build" | Select-Object Name, Length
 
+          # Valida se os pacotes foram criados
           if (!(Test-Path "build/BuildingRails-${{ github.ref_name }}-Web.zip")) {
-            throw "Erro: o HTML5 nao foi gerado pelo TIC-80!"
+            throw "Erro: O ZIP HTML5 standalone nao foi gerado pelo seu TIC-80 PRO!"
           }
 
           if (Test-Path "build/BuildingRails.exe") {
             Compress-Archive -Path "build/BuildingRails.exe" -DestinationPath "build/BuildingRails-${{ github.ref_name }}-Win64.zip" -Force
           } else {
-            throw "Erro: O executavel Windows nao foi gerado pelo TIC-80!"
+            throw "Erro: O executavel Windows standalone nao foi gerado pelo seu TIC-80 PRO!"
           }
 
       - name: 3. Publicar no GitHub Releases (com Changelog Automático)
@@ -98,18 +77,14 @@ jobs:
           New-Item -ItemType Directory -Path "butler_bin" -Force | Out-Null
 
           Write-Host "Baixando Butler..."
-          curl.exe -fsSL "https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default" -o "butler.zip"
-          if ($LASTEXITCODE -ne 0) { throw "Falha ao baixar o Butler" }
-
+          curl.exe -fsSL "https://itch.zone" -o "butler.zip"
           Expand-Archive -Path "butler.zip" -DestinationPath "butler_bin" -Force
-
           $butler = Get-ChildItem -Path "butler_bin" -Recurse -Filter "butler.exe" | Select-Object -First 1
-          if (-not $butler) { throw "butler.exe nao encontrado apos extrair" }
 
           $target = "$env:ITCH_USER/$env:ITCH_GAME"
           $version = "${{ github.ref_name }}"
 
-          Write-Host "Enviando para o itch.io ($target)..."
+          Write-Host "Enviando builds protegidas nativamente para o itch.io ($target)..."
 
           & $butler.FullName push "build/BuildingRails-$version-Web.zip" "${target}:html5" --userversion "$version"
           if ($LASTEXITCODE -ne 0) { throw "Falha ao enviar o HTML5 para o itch.io" }
