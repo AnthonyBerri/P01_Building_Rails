@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag de versão para a Release (ex: v1.0.0)'
+        required: true
+        default: 'v1.0.0'
 
 permissions:
   contents: write
@@ -12,6 +17,7 @@ permissions:
 env:
   ITCH_USER: "antfelixberri"
   ITCH_GAME: "building-rails"
+  RELEASE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name || 'v1.0.0' }}
 
 jobs:
   build-and-deploy:
@@ -37,24 +43,24 @@ jobs:
           Write-Host "Usando o TIC-80 PRO localizado em: $ticExe"
 
           # Copia o cartucho original mantendo a nomenclatura da tag
-          Copy-Item "building_rails.tic" "build/BuildingRails-${{ github.ref_name }}.tic" -Force
+          Copy-Item "building_rails.tic" "build/BuildingRails-$env:RELEASE_VERSION.tic" -Force
 
           # ---------------------------------------------------------------------------------
           # COMANDO DE EXPORTAÇÃO PRO - Removendo console e editores via código nativo
           # ---------------------------------------------------------------------------------
           Write-Host "Executando exportacao limpa com alone=1..."
-          & $ticExe --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-${{ github.ref_name }}-Web.zip alone=1 & export win build/BuildingRails.exe alone=1 & exit"
+          & $ticExe --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-$env:RELEASE_VERSION-Web.zip alone=1 & export win build/BuildingRails.exe alone=1 & exit"
 
           Write-Host "Conteudo da pasta build gerada:"
           Get-ChildItem "build" | Select-Object Name, Length
 
           # Valida se os pacotes foram criados
-          if (!(Test-Path "build/BuildingRails-${{ github.ref_name }}-Web.zip")) {
+          if (!(Test-Path "build/BuildingRails-$env:RELEASE_VERSION-Web.zip")) {
             throw "Erro: O ZIP HTML5 standalone nao foi gerado pelo seu TIC-80 PRO!"
           }
 
           if (Test-Path "build/BuildingRails.exe") {
-            Compress-Archive -Path "build/BuildingRails.exe" -DestinationPath "build/BuildingRails-${{ github.ref_name }}-Win64.zip" -Force
+            Compress-Archive -Path "build/BuildingRails.exe" -DestinationPath "build/BuildingRails-$env:RELEASE_VERSION-Win64.zip" -Force
           } else {
             throw "Erro: O executavel Windows standalone nao foi gerado pelo seu TIC-80 PRO!"
           }
@@ -62,11 +68,12 @@ jobs:
       - name: 3. Publicar no GitHub Releases (com Changelog Automático)
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_VERSION }}
           generate_release_notes: true
           files: |
-            build/BuildingRails-${{ github.ref_name }}-Web.zip
-            build/BuildingRails-${{ github.ref_name }}-Win64.zip
-            build/BuildingRails-${{ github.ref_name }}.tic
+            build/BuildingRails-${{ env.RELEASE_VERSION }}-Web.zip
+            build/BuildingRails-${{ env.RELEASE_VERSION }}-Win64.zip
+            build/BuildingRails-${{ env.RELEASE_VERSION }}.tic
 
       - name: 4. Baixar itch.io Butler CLI e Fazer Deploy Nativamente
         shell: pwsh
@@ -92,7 +99,7 @@ jobs:
           if (-not $butler) { throw "butler.exe nao encontrado apos extrair" }
 
           $target = "$env:ITCH_USER/$env:ITCH_GAME"
-          $version = "${{ github.ref_name }}"
+          $version = "$env:RELEASE_VERSION"
 
           Write-Host "Enviando builds protegidas nativamente com alone=1 para o itch.io ($target)..."
 
