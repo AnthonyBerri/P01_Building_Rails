@@ -78,15 +78,15 @@ jobs:
       - name: 4. Baixar itch.io Butler CLI e Fazer Deploy Nativamente
         shell: pwsh
         env:
-          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY || secrets.BUTLER_API_KEY }}
         run: |
           $ErrorActionPreference = "Stop"
 
           New-Item -ItemType Directory -Path "butler_bin" -Force | Out-Null
 
           Write-Host "Baixando Butler da URL direta oficial..."
-          # URL direta oficial do Butler para Windows 64-bit
-          curl.exe -fsSL "https://broth.itch.ovh/butler/windows-amd64/LATEST/archive/default" -o "butler.zip"
+          # URL direta oficial do Butler no broth.itch.zone para Windows 64-bit
+          curl.exe -fsSL "https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default" -o "butler.zip"
           
           if ($LASTEXITCODE -ne 0 -or !(Test-Path "butler.zip")) { 
             throw "Erro crítico: Nao foi possivel baixar o Butler CLI do servidor do itch.io. Verifique a conexao." 
