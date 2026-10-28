@@ -67,22 +67,39 @@ jobs:
             build/BuildingRails-${{ github.ref_name }}-Win64.zip
             build/BuildingRails-${{ github.ref_name }}.tic
 
-      - name: 4. Instalar itch.io Butler e Fazer Deploy
-        uses: josephbmanley/butler-publish-action@v1.0.3
+            - name: 4. Baixar itch.io Butler CLI e Fazer Deploy Nativamente
+        shell: pwsh
         env:
-          BUTLER_CREDENTIALS: ${{ secrets.ITCHIO_API_KEY }}
-          CHANNEL: html5
-          PACKAGE: build/BuildingRails-${{ github.ref_name }}-Web.zip
-          REGISTRY: itch.io
-          TARGET: antfelixberri/building-rails
-          VERSION: ${{ github.ref_name }}
+          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
+        run: |
+          $ErrorActionPreference = "Stop"
 
-      - name: 5. Fazer Deploy da versão Windows no itch.io
-        uses: josephbmanley/butler-publish-action@v1.0.3
-        env:
-          BUTLER_CREDENTIALS: ${{ secrets.ITCHIO_API_KEY }}
-          CHANNEL: windows
-          PACKAGE: build/BuildingRails-${{ github.ref_name }}-Win64.zip
-          REGISTRY: itch.io
-          TARGET: antfelixberri/building-rails
-          VERSION: ${{ github.ref_name }}
+          New-Item -ItemType Directory -Path "butler_bin" -Force | Out-Null
+
+          Write-Host "Baixando Butler da URL direta oficial..."
+          # Usando o espelho estável .ovh recomendado pela documentação do Butler
+          curl.exe -fsSL "https://itch.ovh" -o "butler.zip"
+          
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path "butler.zip")) { 
+            throw "Erro crítico: Nao foi possivel baixar o Butler CLI do servidor do itch.io. Verifique a conexao." 
+          }
+
+          Write-Host "Extraindo Butler..."
+          Expand-Archive -Path "butler.zip" -DestinationPath "butler_bin" -Force
+
+          $butler = Get-ChildItem -Path "butler_bin" -Recurse -Filter "butler.exe" | Select-Object -First 1
+          if (-not $butler) { throw "butler.exe nao encontrado apos extrair" }
+
+          $target = "$env:ITCH_USER/$env:ITCH_GAME"
+          $version = "${{ github.ref_name }}"
+
+          Write-Host "Enviando builds protegidas nativamente com alone=1 para o itch.io ($target)..."
+
+          & $butler.FullName push "build/BuildingRails-$version-Web.zip" "${target}:html5" --userversion "$version"
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao enviar o HTML5 para o itch.io" }
+
+          & $butler.FullName push "build/BuildingRails-$version-Win64.zip" "${target}:windows" --userversion "$version"
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao enviar o build Windows para o itch.io" }
+
+          & $butler.FullName push "build/BuildingRails-$version.tic" "${target}:tic80" --userversion "$version"
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao enviar o .tic para o itch.io" }
