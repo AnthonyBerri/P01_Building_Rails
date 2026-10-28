@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -67,7 +68,7 @@ jobs:
             build/BuildingRails-${{ github.ref_name }}-Win64.zip
             build/BuildingRails-${{ github.ref_name }}.tic
 
-            - name: 4. Baixar itch.io Butler CLI e Fazer Deploy Nativamente
+      - name: 4. Baixar itch.io Butler CLI e Fazer Deploy Nativamente
         shell: pwsh
         env:
           BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY }}
@@ -77,8 +78,8 @@ jobs:
           New-Item -ItemType Directory -Path "butler_bin" -Force | Out-Null
 
           Write-Host "Baixando Butler da URL direta oficial..."
-          # Usando o espelho estável .ovh recomendado pela documentação do Butler
-          curl.exe -fsSL "https://itch.ovh" -o "butler.zip"
+          # URL direta oficial do Butler para Windows 64-bit
+          curl.exe -fsSL "https://broth.itch.ovh/butler/windows-amd64/LATEST/archive/default" -o "butler.zip"
           
           if ($LASTEXITCODE -ne 0 -or !(Test-Path "butler.zip")) { 
             throw "Erro crítico: Nao foi possivel baixar o Butler CLI do servidor do itch.io. Verifique a conexao." 
@@ -103,5 +104,3 @@ jobs:
 
           & $butler.FullName push "build/BuildingRails-$version.tic" "${target}:tic80" --userversion "$version"
           if ($LASTEXITCODE -ne 0) { throw "Falha ao enviar o .tic para o itch.io" }
-
-
