@@ -14,22 +14,26 @@ jobs:
       - name: 1. Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: 2. Instalar Luacheck e TIC-80 CLI
+      - name: 2. Instalar Ferramentas de Validação
         run: |
           sudo apt-get update
           sudo apt-get install -y lua-check lua5.3
           test -f building_rails.tic
 
-      - name: 3. Validar Sintaxe Lua (main.lua)
+      - name: 3. Compilar src/ em building_rails.lua
         run: |
-          luac5.3 -p main.lua
-          luacheck main.lua --config .luacheckrc
+          cat src/header.lua src/config.lua src/utils.lua src/grid.lua src/carts.lua src/stations.lua src/ui.lua src/main.lua > building_rails.lua
 
-      - name: 4. Validar Integridade e Limite de 64KB do Cartucho (.tic)
+      - name: 4. Validar Sintaxe Lua (building_rails.lua)
+        run: |
+          luac5.3 -p building_rails.lua
+          luacheck building_rails.lua --config .luacheckrc
+
+      - name: 5. Validar Limite de 64KB do Cartucho (.tic)
         run: |
           SIZE=$(stat -c%s "building_rails.tic")
           echo "Tamanho do cartucho: $SIZE bytes"
           if [ "$SIZE" -le 0 ] || [ "$SIZE" -gt 65536 ]; then
-            echo "Erro: Cartucho invalido ou acima de 64KB!"
+            echo "Erro: Cartucho inválido ou acima de 64KB!"
             exit 1
           fi

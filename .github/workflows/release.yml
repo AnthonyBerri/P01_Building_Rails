@@ -35,26 +35,40 @@ jobs:
           # Cria as pastas de saída
           New-Item -ItemType Directory -Path "build" -Force | Out-Null
 
-          # Localiza o seu executável PRO que foi commitado na pasta tools
+          # Concatena os ficheiros de src/ para o building_rails.lua
+          $srcFiles = @(
+              "src/header.lua",
+              "src/config.lua",
+              "src/utils.lua",
+              "src/grid.lua",
+              "src/carts.lua",
+              "src/stations.lua",
+              "src/ui.lua",
+              "src/main.lua"
+          )
+          Get-Content $srcFiles | Set-Content "building_rails.lua" -Encoding UTF8
+          Write-Host "building_rails.lua montado para a Release."
+
+          # Localiza o executável PRO
           $ticExe = "tools/tic80.exe"
           if (!(Test-Path $ticExe)) {
             throw "Erro: O seu tic80.exe PRO customizado nao foi encontrado na pasta tools!"
           }
           Write-Host "Usando o TIC-80 PRO localizado em: $ticExe"
 
-          # Copia o cartucho original mantendo a nomenclatura da tag
+          # Injeta o código atualizado no .tic antes de empacotar
+          & $ticExe --cli --fs="." --cmd="load building_rails.tic & import code building_rails.lua & save building_rails.tic & exit"
+
+          # Copia o cartucho mantendo a nomenclatura da tag
           Copy-Item "building_rails.tic" "build/BuildingRails-$env:RELEASE_VERSION.tic" -Force
 
-          # ---------------------------------------------------------------------------------
-          # COMANDO DE EXPORTAÇÃO PRO - Removendo console e editores via código nativo
-          # ---------------------------------------------------------------------------------
+          # Exportações standalone
           Write-Host "Executando exportacao limpa com alone=1..."
           & $ticExe --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-$env:RELEASE_VERSION-Web.zip alone=1 & export win build/BuildingRails.exe alone=1 & exit"
 
           Write-Host "Conteudo da pasta build gerada:"
           Get-ChildItem "build" | Select-Object Name, Length
 
-          # Valida se os pacotes foram criados
           if (!(Test-Path "build/BuildingRails-$env:RELEASE_VERSION-Web.zip")) {
             throw "Erro: O ZIP HTML5 standalone nao foi gerado pelo seu TIC-80 PRO!"
           }
