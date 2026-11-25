@@ -37,3 +37,7 @@ jobs:
             echo "Erro: Cartucho inválido ou acima de 64KB!"
             exit 1
           fi
+      - name: 6. Executar Testes Automatizados
+        run: |
+          luacheck test_rails.lua --config .luacheckrc
+          lua5.3 test_rails.lua

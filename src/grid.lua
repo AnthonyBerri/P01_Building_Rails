@@ -21,12 +21,16 @@ function CheckBlock(cx, cy)
 end
 
 function PlaceRail(px, py, prot, pt)
+    if px < 0 or py < 0 then
+        return false
+    end
     for i = 1, #rails do
         if rails[i].x == px and rails[i].y == py then
-            return
+            return false
         end
     end
     table.insert(rails, {x = px, y = py, rot = prot, t_rail = pt})
+    return true
 end
 
 function PlaceBlock(bx, by, brot)
