@@ -1,0 +1,85 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da Release para rollback (ex: v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+
+env:
+  ITCH_USER: "antfelixberri"
+  ITCH_GAME: "building-rails"
+
+jobs:
+  rollback:
+    runs-on: windows-latest
+    environment: production
+
+    steps:
+      - name: 1. Checkout da Tag Alvo (${{ inputs.tag }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: 2. Exportar Cartucho da Tag com TIC-80 PRO (alone=1)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Path "build" -Force | Out-Null
+
+          $ticExe = "tools/tic80.exe"
+          if (!(Test-Path $ticExe)) {
+            throw "Erro: tools/tic80.exe nao encontrado na tag ${{ inputs.tag }}!"
+          }
+
+          Copy-Item "building_rails.tic" "build/BuildingRails-${{ inputs.tag }}.tic" -Force
+          & $ticExe --cli --fs="." --cmd="load building_rails.tic & export html build/BuildingRails-${{ inputs.tag }}-Web.zip alone=1 & export win build/BuildingRails.exe alone=1 & exit"
+
+          if (Test-Path "build/BuildingRails.exe") {
+            Compress-Archive -Path "build/BuildingRails.exe" -DestinationPath "build/BuildingRails-${{ inputs.tag }}-Win64.zip" -Force
+          }
+
+          Get-ChildItem "build" | Select-Object Name, Length
+
+      - name: 3. Redeploy no itch.io via Butler CLI
+        shell: pwsh
+        env:
+          BUTLER_API_KEY: ${{ secrets.ITCHIO_API_KEY || secrets.BUTLER_API_KEY }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:BUTLER_API_KEY)) {
+            Write-Host "Aviso: Secret do itch.io nao configurado; pulando push no Butler."
+            exit 0
+          }
+
+          New-Item -ItemType Directory -Path "butler_bin" -Force | Out-Null
+          curl.exe -fsSL "https://broth.itch.zone/butler/windows-amd64/LATEST/archive/default" -o "butler.zip"
+          Expand-Archive -Path "butler.zip" -DestinationPath "butler_bin" -Force
+
+          $butler = Get-ChildItem -Path "butler_bin" -Recurse -Filter "butler.exe" | Select-Object -First 1
+          $target = "$env:ITCH_USER/$env:ITCH_GAME"
+          $version = "${{ inputs.tag }}"
+
+          if (Test-Path "build/BuildingRails-$version-Web.zip") {
+            & $butler.FullName push "build/BuildingRails-$version-Web.zip" "${target}:html5" --userversion "$version"
+          }
+          if (Test-Path "build/BuildingRails-$version-Win64.zip") {
+            & $butler.FullName push "build/BuildingRails-$version-Win64.zip" "${target}:windows" --userversion "$version"
+          }
+          if (Test-Path "build/BuildingRails-$version.tic") {
+            & $butler.FullName push "build/BuildingRails-$version.tic" "${target}:tic80" --userversion "$version"
+          }
+
+      - name: 4. Definir Release ${{ inputs.tag }} como Latest no GitHub
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          gh release edit "${{ inputs.tag }}" --latest
+          Write-Host "Release ${{ inputs.tag }} promovida a Latest com sucesso!"
